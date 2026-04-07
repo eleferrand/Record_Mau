@@ -28,6 +28,50 @@
     .container {
         margin: 0 auto;
     }
+    .caption-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 25px;
+        min-height: 200px; /* Gives enough room so layout doesn't jump */
+    }
+
+    .caption-item {
+        transition: all 0.4s ease-in-out;
+        max-width: 90%;
+    }
+
+    /* Both previous and next will look like this */
+    .context-caption {
+        font-size: 1rem;
+        color: #b0b0b0;
+        filter: blur(2px); 
+        opacity: 0.4;
+    }
+
+    #caption-display {
+        font-size: 1.8rem;
+        color: #2c3e50;
+        font-weight: bold;
+        filter: none;
+        opacity: 1;
+        margin: 15px 0;
+    }
+    #contextList div {
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+        font-size: 0.9rem;
+        color: #666;
+    }
+
+    #contextList .active-context {
+        background: #e1f5fe;
+        color: #2c3e50;
+        font-weight: bold;
+        border-left: 4px solid #00acc1;
+    }
 </style>
 
 <body>
@@ -35,7 +79,11 @@
 <h1 class="page-title">Créole de Maurice</h1>
 
 <div class="container">
-    <h2 id="caption-display">Loading...</h2>
+    <div class="caption-container">
+        <div id="caption-prev" class="caption-item context-caption"></div>
+        <h2 id="caption-display" class="caption-item">Loading...</h2>
+        <div id="caption-next" class="caption-item context-caption"></div>
+    </div>
     <canvas id="visualizer"></canvas>
     
     <div class="controls">
@@ -59,18 +107,41 @@
     document.addEventListener("DOMContentLoaded", () => {
         loadPromptsFromCSV();
 
+        // Existing buttons
         document.getElementById('recordBtn').onclick = startRecording;
         document.getElementById('stopBtn').onclick = stopRecording;
         document.getElementById('retryBtn').onclick = retryRecording;
         document.getElementById('nextBtn').onclick = nextCaption;
-        // document.getElementById('uploadBtn').onclick = uploadBatch;
+
+        // ADD THESE LINES HERE:
+        const contextBtn = document.getElementById('contextBtn');
+        const closeBtn = document.getElementById('closeContext');
+        const overlay = document.getElementById('contextOverlay');
+
+        if (contextBtn) {
+            contextBtn.onclick = () => {
+                renderContextList();
+                overlay.style.display = 'block';
+            };
+        }
+
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                overlay.style.display = 'none';
+            };
+        }
     });
+    
 
     // --- 3. CHARGEMENT DU CSV LOCAL ---
     async function loadPromptsFromCSV() {
         try {
             // 1. Define the number of files you have
+<<<<<<< HEAD
             const totalFiles = 80; 
+=======
+            const totalFiles = 6; 
+>>>>>>> df47f2a (add context)
             
             // 2. Pick a random number between 1 and totalFiles
             const randomNum = Math.floor(Math.random() * totalFiles) + 1;
@@ -92,7 +163,8 @@
                         .filter(line => line !== "");
 
             if (captions.length > 0) {
-                document.getElementById('caption-display').innerText = captions[0];
+                currentIndex = 0; // Ensure we start at the beginning
+                updateCaptionDisplay(); // This fills all three slots immediately
             } else {
                 document.getElementById('caption-display').innerText = "Le fichier est vide.";
             }
@@ -197,36 +269,56 @@ async function startRecording() {
         document.getElementById('retryBtn').disabled = true;
         // document.getElementById('status').innerText = "Effacé. Tu peux recommencer.";
     }
+    function renderContextList() {
+        const listContainer = document.getElementById('contextList');
+        listContainer.innerHTML = ""; // Clear old list
 
+        // Calculate the range (10 before, 10 after)
+        const start = Math.max(0, currentIndex - 10);
+        const end = Math.min(captions.length - 1, currentIndex + 10);
+
+        for (let i = start; i <= end; i++) {
+            const item = document.createElement('div');
+            item.innerText = captions[i];
+            
+            // Highlight the current one
+            if (i === currentIndex) {
+                item.className = "active-context";
+            }
+            
+            listContainer.appendChild(item);
+        }
+    }
     async function nextCaption() {
         const recordingToUpload = batch.get(currentIndex);
 
         if (recordingToUpload) {
-            // We trigger the upload but DON'T use 'await' here 
-            // so the UI changes to the next caption immediately!
             uploadSilently(recordingToUpload, captions[currentIndex]);
-            
-            // Remove from memory once we've started the upload
             batch.delete(currentIndex);
         }
 
-        // Move to the next prompt
+        // Increment the counter
         currentIndex++;
         
         if (currentIndex < captions.length) {
-            document.getElementById('caption-display').innerText = captions[currentIndex];
+            // REFRESH THE DISPLAY HERE
+            updateCaptionDisplay();
+
             // Reset UI for the new recording
             document.getElementById('nextBtn').disabled = true;
             document.getElementById('recordBtn').disabled = false;
             document.getElementById('retryBtn').disabled = true;
             document.getElementById('audioPlayback').style.display = 'none';
-            // document.getElementById('status').innerText = "Ready for next recording.";
         } else {
+            // Finished everything
+            document.getElementById('caption-prev').innerText = "";
             document.getElementById('caption-display').innerText = "All done! Thank you.";
+            document.getElementById('caption-next').innerText = "";
             document.getElementById('recordBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'none';
         }
     }
+    
 
     // --- HELPER FUNCTION FOR SILENT UPLOAD ---
     async function uploadSilently(b64, captionText) {
@@ -246,6 +338,46 @@ async function startRecording() {
             // Optional: you could save failed uploads to a 'retry' list here
         }
     }
+    function updateCaptionDisplay() {
+        const prevEl = document.getElementById('caption-prev');
+        const currEl = document.getElementById('caption-display');
+        const nextEl = document.getElementById('caption-next');
+
+        // Ensure we have captions loaded
+        if (!captions || captions.length === 0) return;
+
+        // 1. Update the Previous Caption (Item at currentIndex - 1)
+        if (currentIndex > 0) {
+            prevEl.innerText = captions[currentIndex - 1];
+        } else {
+            prevEl.innerText = ""; // Empty if we are at the very first one
+        }
+
+        // 2. Update the Current Caption
+        currEl.innerText = captions[currentIndex];
+
+        // 3. Update the Next Caption (Item at currentIndex + 1)
+        if (currentIndex < captions.length - 1) {
+            nextEl.innerText = captions[currentIndex + 1];
+        } else {
+            nextEl.innerText = ""; // Empty if we are at the very last one
+        }
+    }
+    // --- Context Panel Logic ---
+
+    
+
+
 </script>
+
+<button id="contextBtn" style="position: fixed; right: 20px; top: 50%; transform: translateY(-50%); padding: 10px; border-radius: 50%; width: 50px; height: 50px; font-size: 20px; z-index: 100;">📜</button>
+
+<div id="contextOverlay" style="display: none; position: fixed; top: 0; right: 0; width: 300px; height: 100%; background: white; box-shadow: -2px 0 10px rgba(0,0,0,0.2); z-index: 101; padding: 20px; overflow-y: auto; text-align: left;">
+    <button id="closeContext" style="float: right;">Close ✖</button>
+    <h3>Full Context</h3>
+    <hr>
+    <div id="contextList"></div>
+</div>
+
 </body>
 </html>
