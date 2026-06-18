@@ -252,7 +252,7 @@
             mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
             
             mediaRecorder.onstop = () => {
-                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                const blob = new Blob(audioChunks, { type: 'audio/mp3' });
                 const player = document.getElementById('audioPlayback');
                 player.src = URL.createObjectURL(blob);
                 player.style.display = 'block';
